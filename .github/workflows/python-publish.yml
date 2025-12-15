@@ -12,3 +12,4 @@ permissions:
 jobs:
   call-firewheel-python-publish:
     uses: sandialabs/firewheel/.github/workflows/python-publish.yml@main
+    secrets: inherit
