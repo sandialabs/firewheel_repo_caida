@@ -1,0 +1,12 @@
+attributes:
+    depends:
+        - graph
+    provides:
+        - topology
+        - caida_topology
+model_components:
+    depends:
+        - base_objects
+        - generic_vm_objects
+name: caida.load
+plugin: plugin.py

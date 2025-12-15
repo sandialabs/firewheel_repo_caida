@@ -1,0 +1,10 @@
+name: caida.prune_routers
+attributes:
+    depends:
+        - graph
+    provides:
+        - pruned_internet_ases
+model_components:
+    depends:
+        - generic_vm_objects
+plugin: plugin.py

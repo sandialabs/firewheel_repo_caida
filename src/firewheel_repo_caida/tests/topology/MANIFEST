@@ -1,0 +1,12 @@
+attributes:
+    depends:
+        - internet_ases
+    provides:
+        - topology
+        - caida_topology
+model_components:
+    depends:
+        - base_objects
+        - generic_vm_objects
+name: caida.test_topology
+plugin: plugin.py

@@ -1,0 +1,203 @@
+- name: Create working directory for AS links
+  ansible.builtin.file:
+    path: "{{ work_dir_aslinks }}"
+    state: directory
+
+- name: Download files for Team 1
+  ansible.builtin.get_url:
+    url: "https://publicdata.caida.org/datasets/topology/ark/ipv4/as-links/team-1/2018/{{ item }}"
+    dest: "{{ work_dir_aslinks }}/{{ item }}"
+  loop: "{{ team_1_files }}"
+
+- name: Download files for Team 2
+  ansible.builtin.get_url:
+    url: "https://publicdata.caida.org/datasets/topology/ark/ipv4/as-links/team-2/2018/{{ item }}"
+    dest: "{{ work_dir_aslinks }}/{{ item }}"
+  loop: "{{ team_2_files }}"
+
+- name: Download files for Team 3
+  ansible.builtin.get_url:
+    url: "https://publicdata.caida.org/datasets/topology/ark/ipv4/as-links/team-3/2018/{{ item }}"
+    dest: "{{ work_dir_aslinks }}/{{ item }}"
+  loop: "{{ team_3_files }}"
+
+# Find all .gz files in the AS links directory
+- name: Find all .gz files in the AS links directory
+  ansible.builtin.find:
+    paths: "{{ work_dir_aslinks }}"
+    patterns: "*.gz"
+  register: gz_files
+
+# Check if decompressed files already exist
+- name: Check if decompressed files exist
+  ansible.builtin.stat:
+    path: "{{ item.path | regex_replace('\\.gz$', '') }}"
+  register: decompressed_file_check
+  loop: "{{ gz_files.files }}"
+
+# Create a list of existing decompressed files
+- name: Set fact for existing decompressed files
+  ansible.builtin.set_fact:
+    existing_decompressed_files: "{{ decompressed_file_check.results | selectattr('stat.exists', 'equalto', true) | map(attribute='item.path') | map('regex_replace', '\\.gz$', '') | list }}"
+
+# Decompress all .gz files using gunzip if they do not already exist
+- name: Decompress AS links files
+  ansible.builtin.command: gunzip -k "{{ item.path }}"
+  loop: "{{ gz_files.files }}"
+  when: item.path | regex_replace('\\.gz$', '') not in existing_decompressed_files
+
+# Create a directory to hold the individual text files for assembly
+- name: Create directory for assembled files
+  ansible.builtin.file:
+    path: "{{ work_dir_aslinks }}/assembled"
+    state: directory
+
+# Find all .txt files in the AS links directory
+- name: Find all .txt files in the AS links directory
+  find:
+    paths: "{{ work_dir_aslinks }}"
+    patterns: "*.txt"
+  register: txt_files
+
+# Copy .txt files to the assembled directory
+- name: Copy .txt files to assembled directory
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ work_dir_aslinks }}/assembled/"
+  loop: "{{ txt_files.files }}"
+
+# Assemble the .txt files into a single file
+- name: Combine AS links files
+  ansible.builtin.assemble:
+    src: "{{ work_dir_aslinks }}/assembled"  # Source directory containing the .txt files
+    dest: "{{ work_dir_aslinks }}/cycle-aslinks-full.txt"  # Destination file
+
+# Filter AS links data
+- name: Filter AS links data
+  ansible.builtin.shell: >
+      grep -e '^I' -e '^D' {{ work_dir_aslinks }}/cycle-aslinks-full.txt > {{ work_dir_aslinks }}/cycle-aslinks-i-d.txt
+  args:
+    creates: "{{ work_dir_aslinks }}/cycle-aslinks-i-d.txt"
+
+# Extract relevant columns
+- name: Extract relevant columns
+  ansible.builtin.shell: >
+    awk '{print $1 " " $2 " " $3}' {{ work_dir_aslinks }}/cycle-aslinks-i-d.txt > {{ work_dir_aslinks }}/cycle-aslinks-i-d-3.txt
+  args:
+    creates: "{{ work_dir_aslinks }}/cycle-aslinks-i-d-3.txt"
+
+# Remove duplicate entries
+- name: Remove duplicate entries
+  ansible.builtin.shell: >
+    sort {{ work_dir_aslinks }}/cycle-aslinks-i-d-3.txt | uniq > {{ work_dir_aslinks }}/cycle-uniq.txt
+  args:
+    creates: "{{ work_dir_aslinks }}/cycle-uniq.txt"
+
+# Compress the result
+- name: Compress the result
+  ansible.builtin.command: gzip {{ work_dir_aslinks }}/cycle-uniq.txt
+  args:
+    creates: "{{ work_dir_aslinks }}/cycle-uniq.txt.gz"
+
+# Move compressed file to parent directory
+- name: Move compressed file to parent directory
+  ansible.builtin.copy:
+    src: "{{ work_dir_aslinks }}/cycle-uniq.txt.gz"
+    dest: "{{ mc_dir }}/cycle-aslinks.txt.gz"
+    remote_src: true
+
+# Remove working directory for AS links
+- name: Remove working directory for AS links
+  ansible.builtin.file:
+    path: "{{ work_dir_aslinks }}"
+    state: absent
+
+# Create working directory for RouteViews data
+- name: Create working directory for RouteViews data
+  ansible.builtin.file:
+    path: "{{ work_dir_routeviews }}"
+    state: directory
+
+# Download RouteViews files
+- name: Download RouteViews files
+  ansible.builtin.get_url:
+    url: "https://publicdata.caida.org/datasets/routing/routeviews-prefix2as/2018/07/{{ item }}"
+    dest: "{{ work_dir_routeviews }}/{{ item }}"
+  loop: "{{ routeviews_files }}"
+
+# Find all .gz files in the RouteViews directory
+- name: Find all .gz files in the RouteViews directory
+  ansible.builtin.find:
+    paths: "{{ work_dir_routeviews }}"
+    patterns: "*.gz"
+  register: routeviews_gz_files
+
+# Check if decompressed RouteViews files already exist
+- name: Check if decompressed RouteViews files exist
+  ansible.builtin.stat:
+    path: "{{ item.path | regex_replace('\\.gz$', '') }}"
+  register: routeviews_decompressed_file_check
+  loop: "{{ routeviews_gz_files.files }}"
+
+# Create a list of existing decompressed RouteViews files
+- name: Set fact for existing decompressed RouteViews files
+  ansible.builtin.set_fact:
+    existing_routeviews_decompressed_files: "{{ routeviews_decompressed_file_check.results | selectattr('stat.exists', 'equalto', true) | map(attribute='item.path') | map('regex_replace', '\\.gz$', '') | list }}"
+
+# Decompress all RouteViews .gz files using gunzip if they do not already exist
+- name: Decompress RouteViews files
+  ansible.builtin.command: gunzip -k "{{ item.path }}"
+  loop: "{{ routeviews_gz_files.files }}"
+  when: item.path | regex_replace('\\.gz$', '') not in existing_routeviews_decompressed_files
+
+# Create a directory to hold the individual text files for assembly
+- name: Create directory for assembled files
+  ansible.builtin.file:
+    path: "{{ work_dir_routeviews }}/assembled"
+    state: directory
+
+# Find all .txt files in the RouteViews directory
+- name: Find all .txt files in the RouteViews directory
+  ansible.builtin.find:
+    paths: "{{ work_dir_routeviews }}"
+    patterns: "*.txt"
+  register: routeview_txt_files
+
+# Copy .txt files to the assembled directory
+- name: Copy .txt files to assembled directory
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ work_dir_routeviews }}/assembled/"
+  loop: "{{ routeview_txt_files.files }}"
+
+# Assemble the .txt files into a single file
+- name: Combine RouteViews links files
+  ansible.builtin.assemble:
+    src: "{{ work_dir_routeviews }}/assembled"  # Source directory containing the .txt files
+    dest: "{{ work_dir_routeviews }}/routeviews-rv2-201807.pfx2as"  # Destination file
+
+# Filter unique RouteViews entries
+- name: Filter unique RouteViews entries
+  ansible.builtin.shell: >
+    cat {{ work_dir_routeviews }}/routeviews-rv2-201807.pfx2as | sort | uniq > {{ work_dir_routeviews }}/uniq.pfx2as
+  args:
+    creates: "{{ work_dir_routeviews }}/uniq.pfx2as"
+
+# Compress unique RouteViews entries
+- name: Compress unique RouteViews entries
+  ansible.builtin.command: gzip {{ work_dir_routeviews }}/uniq.pfx2as
+  args:
+    creates: "{{ work_dir_routeviews }}/uniq.pfx2as.gz"
+
+# Move compressed RouteViews file to parent directory
+- name: Move compressed RouteViews file to parent directory
+  ansible.builtin.copy:
+    src: "{{ work_dir_routeviews }}/uniq.pfx2as.gz"
+    dest: "{{ mc_dir }}/routeviews.gz"
+    remote_src: true
+
+# Remove working directory for RouteViews
+- name: Remove working directory for RouteViews
+  ansible.builtin.file:
+    path: "{{ work_dir_routeviews }}"
+    state: absent

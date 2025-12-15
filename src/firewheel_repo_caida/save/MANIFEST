@@ -1,0 +1,8 @@
+attributes:
+    depends: []
+    provides: []
+model_components:
+    depends:
+        - base_objects
+name: caida.save
+plugin: plugin.py

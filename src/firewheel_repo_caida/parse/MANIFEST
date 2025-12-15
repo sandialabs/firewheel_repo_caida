@@ -1,0 +1,13 @@
+name: caida.parse
+attributes:
+    depends:
+        - graph
+    provides:
+        - internet_ases
+        - internet_as_annotation
+model_components:
+    depends:
+        - base_objects
+        - generic_vm_objects
+plugin: plugin.py
+model_component_objects: model_component_objects.py

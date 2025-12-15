@@ -1,0 +1,56 @@
+include:
+  - project: 'firewheel/firewheel'
+    ref: main
+    file: '.gitlab/ci/setup.yml'
+
+###########################################################
+# Network connectivity testing for CAIDA model components.
+#
+# This test case will perform the following actions:
+# 1. Installs the CAIDA model components
+# 2. Launches an experiment with two hosts and non-shortest-path
+#    hosts pruned.
+# 3. Waits for the experiment to configure.
+# 4. Identifies the IP addresses of the two hosts.
+# 5. Attempts to ping from one host to the other.
+#
+# The test is successful (and passes) if the two host VMs
+# can successfully communicate across the routed CAIDA
+# infrastructure.
+###########################################################
+ping-vms:
+    tags:
+      - docker
+      - vm
+    image:
+      name: ghcr.io/sandialabs/firewheel:main
+      entrypoint: [""]
+    before_script:
+      - /usr/local/bin/entry
+      - mkdir -p /opt/firewheel
+      - source /fwpy/bin/activate
+      - firewheel version # log for tracking purposes
+      - !reference [.install_mcs, before_script]
+      - !reference [.provision_mcs, before_script]
+      - |
+        sed -i '/linux.git/a\          - path: firewheel\/fouo-material\/bin\/caida.git' "$(firewheel config path)"
+      - firewheel repository install . -i -s
+      - sudo apt update && sudo apt install -y sshpass python3-dev iputils-ping
+      - pip install pytricia
+    script:
+      # firewheel restart technically "fails" since there's some stuff that wasn't
+      # initialized, but it's actually successful. Even if it does fail for real in a
+      # different way, those errors will get caught in the next steps
+      - firewheel restart || true
+      - firewheel experiment -r --no-install caida.parse caida.test_topology:2 caida.prune_routers control_network minimega.launch
+      # wait for the experiment to start
+      - until firewheel time | grep -i 'seconds ago'; do sleep 20; firewheel vm list state time; done
+      # Test that two hosts can ping each other
+      - MM_INSTALL_DIR="$(firewheel config get minimega.install_dir)"
+      - MM_BASE_DIR="$(firewheel config get minimega.base_dir)"
+      - MINIMEGA_BIN="$MM_INSTALL_DIR/bin/minimega -base=$MM_BASE_DIR"
+      - PING_SRC_VM="$(firewheel vm list name=host --csv  | tail -n +2  | head -n 1)"
+      - PING_DST_VM="$(firewheel vm list name=host --csv  | tail -n +2  | tail -n 1)"
+      - PING_DST_IP="$($MINIMEGA_BIN -e ".columns ip .filter name=$PING_DST_VM vm info" | tail -n 1 | awk -F '|' '{print $2}' | awk -F ',' '{print $2}' | sed 's/ //g' | sed 's/\]//g')"
+      - sshpass -p $UBUNTU_VM_PASSWORD firewheel ssh "ubuntu@${PING_SRC_VM}" "ping -c 5 ${PING_DST_IP}"
+
