@@ -15,13 +15,13 @@ This can be combined with :ref:`caida.prune_routers` to create an Internet-like 
 
     firewheel experiment caida.test_topology caida.prune_routers minimega.launch
 
-An example output from this topology (using 2015 data) with default number of hosts (10) is shown below.
+An example output from this topology (using 2015 data) pruned down to 10 hosts is shown below.
+The cyan nodes are routers, the yellow ones are FIREWHEEL Switches, and the magenta are host systems.
 
 .. image:: https://raw.githubusercontent.com/sandialabs/firewheel_repo_caida/refs/heads/main/src/firewheel_repo_caida/tests/topology/caida_10_hosts_pruned.png
    :alt: An example of a pruned CAIDA topology with 10 hosts.
    :width: 600px
    :align: center
-   :caption: This is an example of a pruned CAIDA topology with 10 hosts. The cyan nodes are routers, the yellow ones are FIREWHEEL Switches, and the magenta are host systems.
 
 **Attribute Provides:**
     * ``topology``
