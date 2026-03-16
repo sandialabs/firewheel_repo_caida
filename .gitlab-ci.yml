@@ -3,6 +3,14 @@ include:
     ref: main
     file: '.gitlab/ci/setup.yml'
 
+###############################
+# CI: `firewheel_repo_caida`
+###############################
+
+stages:
+  - test
+  - upstream
+
 ###########################################################
 # Network connectivity testing for CAIDA model components.
 #
@@ -19,6 +27,7 @@ include:
 # infrastructure.
 ###########################################################
 ping-vms:
+    stage: test
     tags:
       - docker
       - vm
@@ -54,3 +63,10 @@ ping-vms:
       - PING_DST_IP="$($MINIMEGA_BIN -e ".columns ip .filter name=$PING_DST_VM vm info" | tail -n 1 | awk -F '|' '{print $2}' | awk -F ',' '{print $2}' | sed 's/ //g' | sed 's/\]//g')"
       - sshpass -p $UBUNTU_VM_PASSWORD firewheel ssh "ubuntu@${PING_SRC_VM}" "ping -c 5 ${PING_DST_IP}"
 
+
+# Trigger CI for FIREWHEEL
+firewheel-ci:
+  stage: upstream
+  trigger: firewheel/firewheel
+  only:
+    - main
